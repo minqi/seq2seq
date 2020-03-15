@@ -128,7 +128,11 @@ class ParallelCorpus:
     def shuffle_dataset(self):
         self.shuffled_indices = torch.randperm(len(self.pairs))
 
-    # @todo: make batch generator so we can iterate in terms of epochs
+    def reset_with_batch_size(self, batch_size=1):
+        self.batch_size = batch_size
+        self.batches_generated = 0
+        self.shuffle_dataset()
+
     def __iter__(self):
         return self
 
@@ -141,8 +145,4 @@ class ParallelCorpus:
         self.batches_generated += 1
 
         return next_batch
-
-    def reset_with_batch_size(self, batch_size=1):
-        self.batch_size = batch_size
-        self.batches_generated = 0
-        self.shuffle_dataset()
+        
