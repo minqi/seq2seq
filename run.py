@@ -16,14 +16,16 @@ def load_args():
 	parser.add_argument('-p', '--data_path', type=str, default='data/translation/en-fr-small.txt')
 	parser.add_argument('-i', '--input_name', type=str, default='en')
 	parser.add_argument('-o', '--output_name', type=str, default='fr')
-	parser.add_argument('-s', '--save_path', type=str, default='checkpoints/')
+	parser.add_argument('--save_path', type=str, default='checkpoints/')
+	parser.add_argument('--save', type=bool, default=False)
 	parser.add_argument('-v', '--verbose', type=bool, default=True)
 	parser.add_argument('--cuda', type=bool, default=False)
 
+	parser.add_argument('--bahdanau_attention', type=bool, default=False)
 	parser.add_argument('--hidden_size', type=int, default=256)
 	parser.add_argument('--dropout', type=float, default=0.05)
 
-	parser.add_argument('-bs', '--batch_size', type=int, default=1)
+	parser.add_argument('-bs', '--batch_size', type=int, default=2)
 	parser.add_argument('-lr', '--learning_rate', type=int, default=1e-4)
 	parser.add_argument('-n', '--n_epochs', type=int, default=50000)
 	parser.add_argument('--teacher_forcing_ratio', type=float, default=0.5)
@@ -59,7 +61,7 @@ def log_epoch(n_epochs, checkpoint_epochs, print_epochs, plot_epochs,
 	if epoch % plot_epochs == 0:
 		plot_losses.append(loss)
 
-	if epoch % checkpoint_epochs == 0:
+	if save_path and epoch % checkpoint_epochs == 0:
 		torch.save({
 			'epoch': epoch,
             'model_state_dict': model.state_dict(),
@@ -69,7 +71,7 @@ def log_epoch(n_epochs, checkpoint_epochs, print_epochs, plot_epochs,
 if __name__ == '__main__':
 	args = load_args()
 
-	device = torch.device('cuda:0') if torch.cuda.is_available() else 'cpu'
+	device = torch.device('cuda:0') if torch.cuda.is_available() and args.cuda else 'cpu'
 
 	corpus = ParallelCorpus(
 				args.data_path, args.input_name, args.output_name,
@@ -77,29 +79,39 @@ if __name__ == '__main__':
 
 	encoder = EncoderRNN(
 		corpus.input_lang.n_words, args.hidden_size, n_layers=2).to(device)
-	decoder = AttentionDecoderRNN(
-		'general', args.hidden_size, corpus.output_lang.n_words, n_layers=2, dropout=args.dropout).to(device)
+	if args.bahdanau_attention:
+		decoder = BahdanauAttentionDecoderRNN(
+			args.hidden_size, corpus.output_lang.n_words, 
+			n_layers=2, dropout=args.dropout).to(device)
+	else:
+		decoder = AttentionDecoderRNN(
+			'general', args.hidden_size, corpus.output_lang.n_words, 
+			n_layers=2, dropout=args.dropout).to(device)
 	seq2seq = Seq2Seq(encoder, decoder).to(device)
 
-	# teacher_forcing_schedule = lambda i:args.teacher_forcing_ratio 
-	# optimizer = torch.optim.Adam(seq2seq.parameters, lr=args.learning_rate)
+	teacher_forcing_schedule = lambda i:args.teacher_forcing_ratio 
+	optimizer = torch.optim.Adam(seq2seq.parameters, lr=args.learning_rate)
 
-	# plot_losses = []
-	# save_path = os.path.join(args.save_path, 's2s-' + datetime.now().strftime('%d-%m-%Y-%h-%S.%f'))
-	# start = time.time()
-	# on_epoch_done_callback = partial(log_epoch,
-	# 	args.n_epochs, args.checkpoint_epochs, args.print_epochs, args.plot_epochs, 
-	# 	save_path, plot_losses, start)
-	# trainer = Trainer(seq2seq, corpus, teacher_forcing_schedule, optimizer=optimizer, clip=args.clip,
-	# 		on_epoch_done_callback=on_epoch_done_callback)
+	plot_losses = []
+	save_path = None
+	if args.save:
+		save_path = os.path.join(args.save_path, 's2s-' + datetime.now().strftime('%d-%m-%Y-%h-%S.%f'))
+	start = time.time()
+	on_epoch_done_callback = partial(log_epoch,
+		args.n_epochs, args.checkpoint_epochs, args.print_epochs, args.plot_epochs, 
+		save_path, plot_losses, start)
+	trainer = Trainer(seq2seq, corpus, teacher_forcing_schedule, optimizer=optimizer, clip=args.clip,
+			on_epoch_done_callback=on_epoch_done_callback)
 
-	# trainer.train(args.n_epochs, args.batch_size)
+	trainer.train(args.n_epochs, args.batch_size)
 
-	# evaluation.show_plot(plot_losses)
- 
-	checkpoint = torch.load('checkpoints/s2s-16-03-2020-Mar-27.393182')
-	seq2seq.load_state_dict(checkpoint['model_state_dict'])
-	seq2seq.eval()
-	sentence = "i m ok ."
-	evaluation.evaluate(seq2seq, corpus, sentence)
+	evaluation.show_plot(plot_losses)
+
+	# ---- uncomment to evaluate trained models ---
+
+	# checkpoint = torch.load('checkpoints/s2s-16-03-2020-Mar-27.393182')
+	# seq2seq.load_state_dict(checkpoint['model_state_dict'])
+	# seq2seq.eval()
+	# sentence = "i m ok ."
+	# evaluation.evaluate(seq2seq, corpus, sentence)
 

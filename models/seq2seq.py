@@ -131,22 +131,25 @@ class BahdanauAttentionDecoderRNN(DeviceAwareModule):
 		self.dropout = nn.Dropout(dropout)
 		self.attention_layer = Attention('concat', hidden_size)
 		self.gru = nn.GRU(2*hidden_size, hidden_size, n_layers, dropout=dropout, batch_first=True)
-		self.out = nn.Linear(hidden_size, output_size) 
+		self.out = nn.Linear(2*hidden_size, output_size) 
 		# @todo: use max-out with k=2 followed by linear deep output
 
-	def forward(self, word_input, last_hidden, encoder_outputs, encoder_output_lengths):
+	def forward(self, word_input, last_context, last_hidden, encoder_outputs, encoder_output_lengths):
+		# N.B. Bahdanau-style attention decoding does not use the last context, but this argument
+		# is included here for consistency with the more recent Luong-style decoder.
 		word_embedding = self.dropout(self.embedding(word_input))
 
 		# Use h_{t-1} to predict attention scores. Hidden encodes previous context, so no need for "input feeding."
 		mask = sequence_utils.length_to_mask(encoder_output_lengths)
 		attention_scores = self.attention_layer(last_hidden[-1], encoder_outputs, mask)
-		context = attention_scores.unsqueeze(1).bmm(encoder_outputs)
+		context = attention_scores.unsqueeze(1).bmm(encoder_outputs).squeeze(1)
 
-		rnn_input = torch.cat((word_embedding.unsqueeze(1), context), -1)
+		rnn_input = torch.cat((word_embedding, context), -1).unsqueeze(1)
 		rnn_output, hidden = self.gru(rnn_input, last_hidden)
+		rnn_output = rnn_output.squeeze(1)
 		output = F.log_softmax(self.out(torch.cat((rnn_output, context), 1)), 1)
 
-		return output, hidden, attention_scores
+		return output, hidden, context, attention_scores
 
 
 class Seq2Seq(DeviceAwareModule):
