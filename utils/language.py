@@ -121,10 +121,11 @@ class ParallelCorpus:
             self.tensors_from_pair(self.pairs[i])
             for i in range(start, start + self.batch_size)
             if i < self.corpus_size]
+        batch_pairs = sorted(batch_pairs, key=lambda p:len(p[0]), reverse=True)
         batch_in = torch.nn.utils.rnn.pad_sequence([p[0] for p in batch_pairs], batch_first=True)
         batch_out = torch.nn.utils.rnn.pad_sequence([p[1] for p in batch_pairs], batch_first=True)
         batch_lengths = torch.LongTensor([len(p[0]) for p in batch_pairs])
-        return (batch_in, batch_out, batch_lengths)
+        return (batch_in, batch_out)
 
     def shuffle_dataset(self):
         self.shuffled_indices = torch.randperm(len(self.pairs))

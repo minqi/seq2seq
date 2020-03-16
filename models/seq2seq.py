@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import torch
 import torch.nn as nn
@@ -5,6 +7,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 import utils.sequence_utils as sequence_utils
+from utils import language
 
 
 class DeviceAwareModule(nn.Module):
@@ -29,7 +32,7 @@ class EncoderRNN(DeviceAwareModule):
 		hidden = torch.zeros(self.n_layers, batch_size, self.hidden_size).to(self.device)
 		return hidden
 
-	def forward(self, word_inputs, hidden=None, reset=False):
+	def forward(self, word_inputs, hidden=None, reset=True):
 		bs = word_inputs.shape[0]
 		
 		if hidden is None or reset:
@@ -146,5 +149,55 @@ class BahdanauAttentionDecoderRNN(DeviceAwareModule):
 		return output, hidden, attention_scores
 
 
+class Seq2Seq(DeviceAwareModule):
+	def __init__(self, encoder, decoder):
+		super().__init__()
 
+		self.encoder = encoder
+		self.decoder = decoder
 
+	@property
+	def parameters(self):
+		return list(self.encoder.parameters()) + list(self.decoder.parameters())
+
+	@property
+	def encoder_parameters(self):
+		return self.encoder.parameters()
+
+	@property
+	def decoder_parameters(self):
+		return self.decoder.parameters()
+
+	def forward(self, word_inputs, max_length, teacher_forcing_ratio=0.0, targets=None):
+		bs = word_inputs.shape[0]
+		encoder_out, encoder_h, encoder_lengths = self.encoder(word_inputs)
+		
+		decoder_h = encoder_h
+		decoder_c = torch.zeros(bs, self.decoder.hidden_size)
+		decoder_input = \
+			torch.LongTensor([language.SOS_TOKEN]).repeat(bs).to(self.decoder.device)
+
+		done = torch.BoolTensor(bs).fill_(False)
+		outputs = []
+		for t in range(max_length):
+			decoder_out, decoder_h, decoder_c, decoder_a = \
+				self.decoder(decoder_input, decoder_c, decoder_h, encoder_out, encoder_lengths)
+
+			if self.training:
+				outputs.append(decoder_out)
+			else:
+				max_out = decoder_out.argmax(1)
+				outputs.append(max_out)
+				done ^= (max_out == language.EOS_TOKEN)
+				if done.all():
+					break
+
+			use_teacher_forcing = self.training and random.random() < teacher_forcing_ratio
+			if use_teacher_forcing:
+				decoder_input = targets[:, t]
+			else:
+				decoder_input = decoder_out.argmax(1)
+
+		outputs = torch.stack(outputs, 1) # B x T x D
+
+		return outputs
