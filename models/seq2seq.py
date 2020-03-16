@@ -187,6 +187,7 @@ class Seq2Seq(DeviceAwareModule):
 				outputs.append(decoder_out)
 			else:
 				max_out = decoder_out.argmax(1)
+				max_out[done] = language.PAD_TOKEN
 				outputs.append(max_out)
 				done ^= (max_out == language.EOS_TOKEN)
 				if done.all():
@@ -201,3 +202,33 @@ class Seq2Seq(DeviceAwareModule):
 		outputs = torch.stack(outputs, 1) # B x T x D
 
 		return outputs
+
+	def predict(self, sentence, corpus, max_length=10):
+		word_inputs = corpus.input_lang.tensor_from_sentence(sentence).unsqueeze(0)
+
+		if len(word_inputs.shape) < 2:
+			word_inputs = word_inputs.unsqueeze(0)
+		encoder_out, encoder_h, encoder_lengths = self.encoder(word_inputs)
+		decoder_h = encoder_h
+		decoder_c = torch.zeros(1, self.decoder.hidden_size)
+		decoder_input = \
+			torch.LongTensor([language.SOS_TOKEN]).to(self.decoder.device)
+		decoded_words = []
+		decoder_attention = torch.zeros(max_length, max_length)
+		input_length = word_inputs.shape[1]
+		for t in range(max_length):
+			decoder_out, decoder_h, decoder_c, decoder_a = \
+				self.decoder(decoder_input, decoder_c, decoder_h, encoder_out, encoder_lengths)
+
+			decoder_attention[t, :input_length] += decoder_a[0]
+
+			word_index = decoder_out.argmax(1)
+			decoded_words.append(corpus.output_lang.index2word[word_index[0].item()])
+			if word_index == language.EOS_TOKEN:
+				break
+
+			decoder_input = word_index
+			
+		return decoded_words, decoder_attention[:t+1, :input_length]
+
+

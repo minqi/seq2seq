@@ -15,3 +15,4 @@ saved_models/
 logs/
 results/
 images/
+checkpoints/

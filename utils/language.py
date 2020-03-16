@@ -32,6 +32,13 @@ class Language:
         else:
             self.word2count[word] += 1
 
+    def indices_from_sentence(self, sentence):
+        return [self.word2index[word] for word in sentence.split(' ')]
+
+    def tensor_from_sentence(self, sentence):
+        indices = self.indices_from_sentence(sentence)
+        indices.append(EOS_TOKEN)
+        return Variable(torch.LongTensor(indices))
 
 class ParallelCorpus:
     def __init__(self, path, lang1, lang2, reverse=False, _filter=None, verbose=True, device='cpu'):
@@ -91,17 +98,10 @@ class ParallelCorpus:
 
         return input_lang, output_lang, pairs
 
-    def indices_from_sentence(self, lang, sentence):
-        return [lang.word2index[word] for word in sentence.split(' ')]
-
-    def tensor_from_sentence(self, lang, sentence):
-        indices = self.indices_from_sentence(lang, sentence)
-        indices.append(EOS_TOKEN)
-        return Variable(torch.LongTensor(indices)).to(self.device)
-
     def tensors_from_pair(self, pair):
-        input_tensor = self.tensor_from_sentence(self.input_lang, pair[0])
-        output_tensor = self.tensor_from_sentence(self.output_lang, pair[1])
+        input_tensor = self.input_lang.tensor_from_sentence(pair[0]).to(self.device)
+        output_tensor = self.output_lang.tensor_from_sentence(pair[1]).to(self.device)
+
         return (input_tensor, output_tensor)
 
     def get_random_batch(self, batch_size=1, replace=False):

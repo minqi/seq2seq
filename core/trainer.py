@@ -44,7 +44,11 @@ class Trainer:
 				avg_loss += batch_loss
 			avg_loss /= n_batches
 			if self.on_epoch_done_callback:
-				self.on_epoch_done_callback(epoch, avg_loss.item())
+				optimizer_dict = {
+					'optimizer':self.optimizer,
+					'encoder_optimizer':self.encoder_optimizer,
+					'decoder_optimizer':self.decoder_optimizer}
+				self.on_epoch_done_callback(epoch, avg_loss.item(), self.model, optimizer_dict)
 
 	def batch_update(self, batch_x, batch_y, teacher_forcing_ratio, batch_index):
 		if self.optimizer:
@@ -57,13 +61,10 @@ class Trainer:
 		outputs = self.model(batch_x, max_length, teacher_forcing_ratio, targets=batch_y)
 		loss = 0
 		for t in range(batch_y.shape[1]):
-			try:
-				loss += self.loss_function(outputs[:,t,:], batch_y[:,t])
-			except:
-				import pdb; pdb.set_trace()
+			loss += self.loss_function(outputs[:,t,:], batch_y[:,t])
 		loss.backward()
 		if self.clip:
-			torch.nn.utils.clip_grad_norm(self.model.parameters, self.clip)
+			torch.nn.utils.clip_grad_norm_(self.model.parameters, self.clip)
 		if self.optimizer:
 			self.optimizer.step()
 		else:
