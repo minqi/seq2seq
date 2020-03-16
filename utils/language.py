@@ -7,17 +7,17 @@ from torch.autograd import Variable
 
 import utils.log as log
 
-
+PAD_TOKEN = 0
 SOS_TOKEN = 1
-EOS_TOKEN = 0
+EOS_TOKEN = 2
 
 class Language:
     def __init__(self, name):
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {0: "<SOS>", 1: "<EOS>"}
-        self.n_words = 2
+        self.index2word = {0:'<PAD>', 1:'<SOS>', 2:'<EOS>'}
+        self.n_words = 3
 
     def index_words(self, sentence):
         for word in sentence.split(' '):
@@ -123,7 +123,8 @@ class ParallelCorpus:
             if i < self.corpus_size]
         batch_in = torch.nn.utils.rnn.pad_sequence([p[0] for p in batch_pairs], batch_first=True)
         batch_out = torch.nn.utils.rnn.pad_sequence([p[1] for p in batch_pairs], batch_first=True)
-        return (batch_in, batch_out)
+        batch_lengths = torch.LongTensor([len(p[0]) for p in batch_pairs])
+        return (batch_in, batch_out, batch_lengths)
 
     def shuffle_dataset(self):
         self.shuffled_indices = torch.randperm(len(self.pairs))

@@ -21,7 +21,8 @@ GOOD_PREFIXES = (
     "i am ", "i m ",
     "he is", "he s ",
     "she is", "she s",
-    "you are", "you re "
+    "you are", "you re ",
+    "hello", "hi",
 )
 def simple_filter(p):
 	return len(p[0].split(' ')) < MAX_LENGTH and len(p[1].split(' ')) < MAX_LENGTH and \
@@ -32,13 +33,16 @@ if __name__ == '__main__':
 
 	device = torch.device('cuda:0') if torch.cuda.is_available() else 'cpu'
 
-	# corpus = ParallelCorpus(
-	# 			args.data_path, args.input_name, args.output_name,
-	# 			_filter=simple_filter, verbose=args.verbose, device=device)
+	corpus = ParallelCorpus(
+				args.data_path, args.input_name, args.output_name,
+				_filter=simple_filter, verbose=args.verbose, device=device)
 
-	# corpus.reset_with_batch_size(2)
-	# for b in corpus:
-	# 	print(b)
+	corpus.reset_with_batch_size(2)
+	for b in corpus:
+		x, y, lengths = b
+		print(x)
+		print(y)
+		print(lengths)
 
 	encoder = EncoderRNN(10, 16, 2).to(device)
 	# decoder = AttentionDecoderRNN('dot', 16, 10, 2)
@@ -46,17 +50,19 @@ if __name__ == '__main__':
 	print(encoder)
 	print(decoder)
 
-	word_inputs = torch.LongTensor([1, 2, 3]).unsqueeze(0).repeat(2, 1)
+	word_inputs = torch.LongTensor([[1, 2, 3], [1, 2, 0]])
+
 	bs = word_inputs.shape[0]
-	encoder_out, encoder_h  = encoder(word_inputs, None, reset=True)
+	encoder_out, encoder_h, encoder_lengths  = encoder(word_inputs, None, reset=True)
 	decoder_h = encoder_h
 	last_context = torch.zeros(bs, decoder.hidden_size)
 
-	for i in range(len(encoder_out)):
+	decoder_outs = []
+	for i in range(encoder_out.shape[1]):
 		# decoder_out, decoder_h, decoder_c, decoder_a = \
-		# 	decoder(word_inputs[:, i], last_context, decoder_h, encoder_out)
+		# 	decoder(word_inputs[:, i], last_context, decoder_h, encoder_out, encoder_lengths)
 		decoder_out, decoder_h, decoder_a = \
-			decoder(word_inputs[:, i], decoder_h, encoder_out)
+			decoder(word_inputs[:, i], decoder_h, encoder_out, encoder_lengths)
+		decoder_outs.append(decoder_out)
 
-	print(decoder_out)
-	print(decoder_out.shape)
+	decoder_outs = torch.stack(decoder_outs, 1)
