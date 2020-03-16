@@ -10,9 +10,11 @@ tmp
 *.pyc
 *.h5
 __pycache__/
-data/
-saved_models/
+data/*
+!data/translation/
+data/translation/*
+!data/translation/en-fr-small.txt
+checkpoints/
 logs/
 results/
 images/
-checkpoints/
