@@ -4,7 +4,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.autograd import Variable
 
 import utils.sequence_utils as sequence_utils
 from utils import language
@@ -47,7 +46,6 @@ class EncoderRNN(DeviceAwareModule):
 
 
 class Attention(DeviceAwareModule):
-	# @todo: need to mask out PAD tokens in batch
 	def __init__(self, attention_type, hidden_size):
 		super().__init__()
 
