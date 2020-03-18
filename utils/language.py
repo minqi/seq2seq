@@ -119,8 +119,7 @@ class ParallelCorpus:
         start = self.batch_size*self.batches_generated
         batch_pairs = [
             self.tensors_from_pair(self.pairs[i])
-            for i in range(start, start + self.batch_size)
-            if i < self.corpus_size]
+            for i in self.shuffled_indices[start:start + self.batch_size] if i < self.corpus_size]
         batch_pairs = sorted(batch_pairs, key=lambda p:len(p[0]), reverse=True)
         batch_in = torch.nn.utils.rnn.pad_sequence([p[0] for p in batch_pairs], batch_first=True)
         batch_out = torch.nn.utils.rnn.pad_sequence([p[1] for p in batch_pairs], batch_first=True)
