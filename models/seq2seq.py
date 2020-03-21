@@ -66,7 +66,7 @@ class Attention(DeviceAwareModule):
 			attention_scores[:, t] = self.score(hidden, encoder_outputs[:, t])
 
 		if mask is not None:
-			attention_scores *= mask
+			attention_scores[~mask] = -float('inf')
 		return F.softmax(attention_scores, dim=1)
 
 	def score(self, hidden, encoder_output):
